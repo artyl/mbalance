@@ -1,19 +1,18 @@
 # -*- coding: utf8 -*-
 ''' Автор ArtyLa '''
-import os, sys, re, logging, random, time
-import requests
-import store
+import logging, random, time
+from mbalance.lib import simple, settings
 
 def get_balance(login, password, storename=None, wait=True, **kwargs):
     ''' На вход логин и пароль, на выходе словарь с результатами '''
-    store.update_settings(kwargs)
-    store.turn_logging()
+    # *** store.update_settings(kwargs)
+    # *** store.turn_logging()
     result = {}
-    logging.info(f"Start show_chrome={store.options('show_chrome')}")
+    logging.info(f"Start show_chrome={settings.get('show_chrome', kwargs)}")
     logging.info(f"Start {kwargs=}")
 
     logging.warning('Start warning')
-    session = store.Session(storename)
+    session = simple.Session(storename)
     result = {
         'Balance': 124.45 + random.randint(1, 5),  # double
         'Balance2': 22,  # double
@@ -44,8 +43,8 @@ def get_balance(login, password, storename=None, wait=True, **kwargs):
     }
     # для теста можно передавать значения result как параметры
     for key in result:
-        if store.options(key, None):
-            result[key] = store.options(key, None)
+        if key in kwargs:
+            result[key] = kwargs.get(key)
         if key.lower() in kwargs:
             result[key] = kwargs.get(key.lower(), None)
     session.save_session()

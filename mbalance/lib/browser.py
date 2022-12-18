@@ -1,6 +1,7 @@
 ''' Работа с браузером через синхронный вариант библиотеки playwright python '''
 import glob, json, logging, os, re, shutil, subprocess, sys, time, tempfile
 from playwright.sync_api import sync_playwright
+from mbalance.lib import settings, simple
 try:
     from playwright_stealth import stealth_sync
 except Exception:
@@ -13,7 +14,6 @@ if sys.platform == 'win32':
         print('No win32 installed, no fake-headless mode')
 import psutil
 # import pprint; pp = pprint.PrettyPrinter(indent=4).pprint
-import store, settings
 
 # Какой бы ни был режим в mbplugin для всех сторонних модулей отключаем расширенное логирование
 # иначе в лог польется все тоннами
@@ -64,7 +64,7 @@ def safe_run_decorator(func):
         # Готовим строку для лога
         default = kwargs.pop('default', None)
         log_string = f'call: {getattr(func,"__name__","")}({", ".join(map(repr,args))}, {", ".join([f"{k}={repr(v)}" for k,v in kwargs.items()])})'
-        if str(store.options('log_full_eval_string')) == '0':
+        if True:  # TODO не придумал как пролидывать опции так что пока всегда вместо str(store.options('log_full_eval_string')) == '0':
             log_string = log_string if len(log_string) < 200 else log_string[:100] + '...' + log_string[-100:]
             if 'password' in log_string:
                 log_string = log_string.split('password')[0] + 'password ....'
@@ -73,7 +73,7 @@ def safe_run_decorator(func):
             logging.info(f'{log_string} OK')
             return res
         except Exception:
-            exception_text = store.exception_text()
+            exception_text = simple.exception_text()
             if 'Операция успешно завершена:' not in exception_text:  # бывает exception с таким текстом :-)
                 logging.info(f'{log_string} fail: {exception_text}')
             wrapper.__exception_text__ = exception_text
@@ -88,7 +88,7 @@ def safe_run(func, *args, **kwargs):
         return res
     except Exception:
         log_string = f'{func.__name__}({", ".join(map(repr,args))}, {", ".join([f"{k}={repr(v)}" for k,v in kwargs.items()])})'
-        logging.info(f'call {log_string} fail: {store.exception_text()}')
+        logging.info(f'call {log_string} fail: {simple.exception_text()}')
 
 
 @safe_run_decorator
@@ -147,7 +147,7 @@ def kill_chrome():
 @safe_run_decorator
 def fix_crash_banner(storefolder, storename):
     'Исправляем Preferences чтобы убрать баннер Работа Chrome была завершена некорректно'
-    fn_pref = store.abspath_join(storefolder, 'headless', storename, 'Default', 'Preferences')
+    fn_pref = os.path.join(storefolder, 'headless', storename, 'Default', 'Preferences')
     if not os.path.exists(fn_pref):
         return  # Нет Preferences - выходим
     with open(fn_pref, encoding='utf8') as f:
@@ -161,25 +161,25 @@ def fix_crash_banner(storefolder, storename):
 def clear_cache(storefolder, storename):
     'Очищаем папку с кэшем профиля чтобы не разрастался'
     # return  # С такой очисткой оказывается связаны наши проблемы с загрузкой
-    profilepath = store.abspath_join(storefolder, 'headless', storename)
-    shutil.rmtree(store.abspath_join(profilepath, 'BrowserMetrics'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'cache2'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'pnacl'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'GrShaderCache', 'GPUCache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'ShaderCache', 'GPUCache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'OnDeviceHeadSuggestModel'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'startupCache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'Crashpad'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'Default', 'Cache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'Default', 'Code Cache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'Default', 'GPUCache'), ignore_errors=True)
-    shutil.rmtree(store.abspath_join(profilepath, 'Default', 'Service Worker', 'CacheStorage'), ignore_errors=True)
+    profilepath = os.path.join(storefolder, 'headless', storename)
+    shutil.rmtree(os.path.join(profilepath, 'BrowserMetrics'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'cache2'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'pnacl'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'GrShaderCache', 'GPUCache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'ShaderCache', 'GPUCache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'OnDeviceHeadSuggestModel'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'startupCache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'Crashpad'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'Default', 'Cache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'Default', 'Code Cache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'Default', 'GPUCache'), ignore_errors=True)
+    shutil.rmtree(os.path.join(profilepath, 'Default', 'Service Worker', 'CacheStorage'), ignore_errors=True)
 
 @safe_run_decorator
 def delete_profile(storefolder, storename):
     'Удаляем профиль'
     kill_chrome()  # Перед удалением киляем хром
-    profilepath = store.abspath_join(storefolder, 'headless', storename)
+    profilepath = os.path.join(storefolder, 'headless', storename)
     shutil.rmtree(profilepath)
 
 def check_browser_opened_decorator(func):  # pylint: disable=no-self-argument
@@ -214,7 +214,7 @@ def safe_run_with_log_decorator(func):  # pylint: disable=no-self-argument
             logging.info(f'{log_string} OK')
             return res
         except Exception:
-            exception_text = store.exception_text()
+            exception_text = simple.exception_text()
             if 'Target page, context or browser has been closed' in exception_text:
                 raise RuntimeError(f'Browser has been closed')  # браузера уже нет
             logging.info(f'{log_string} fail: {exception_text}')
@@ -228,12 +228,13 @@ class BalanceOverPlaywright():
     def options(self, param):
         ''' Обертка вокруг store.options чтобы передать в нее пару (номер, плагин) для вытаскивания индивидуальных параметров'''
         # Брать нужно оригинальный логин (с дописками, т.к. по нему мы будем искать совпадение в phones.ini
-        pkey = store.get_pkey(self.login_ori, plugin_name=self.plugin_name)
-        return store.options(param, pkey=pkey)
+        # pkey = store.get_pkey(self.login_ori, plugin_name=self.plugin_name)
+        return settings.get(param, self._options)
 
-    def __init__(self, login, password, storename=None, wait_loop=30, wait_and_reload=10, max_timeout=15, login_url=None, user_selectors=None, headless=None, force=1, plugin_name=''):
+    def __init__(self, login, password, storename=None, options=None, wait_loop=30, wait_and_reload=10, max_timeout=15, login_url=None, user_selectors=None, headless=None, force=1, plugin_name=''):
         '''Передаем стандартно login, password, storename'
         Дополнительно
+        options=Словарь параметров, если они отличаются от дефолтных, заданных в settings
         wait_loop=30 - Сколько секунд ждать появления информации на странице
         wait_and_reload=10 - Сколько секунд ждать, после чего перезагрузить страницу
         max_timeout=15 - сколько секунд ждать прогрузки страниц, появления форм и т.п.
@@ -242,6 +243,7 @@ class BalanceOverPlaywright():
         force - коэффициент, на который будет умножено страховочное ожидание 0 - ускориться, 2 - замедлиться
         если все проверки заданы качественно - можно указать force=0
         plugin_name - нужен для поиска индивидуальных параметров в phones.ini'''
+        self._options = {} if options is None else options
         self.browser, self.page = None, None  # откроем браузер - заполним
         self.browser_open = True  # флаг что браузер работает
         self.wait_loop = wait_loop  # TODO подобрать параметр
@@ -252,10 +254,6 @@ class BalanceOverPlaywright():
         self.password = password
         self.login_ori, self.acc_num = login, ''
         self.login = login
-        if settings.mode == settings.MODE_MB:
-            self.storefolder = self.options('storefolder')
-        else:
-            self.storefolder = tempfile.gettempdir()
         if storename is None:
             lang = 'p'
             storename = re.sub(r'\W', '_', f"{lang}_{self.plugin_name}_{login}")
@@ -264,9 +262,8 @@ class BalanceOverPlaywright():
         self.user_selectors = user_selectors
         self.ss_counter = 0  # Счетчик скриншотов
         # Удаляем скриншоты с прошлых разов
-        if settings.mode == settings.MODE_MB:
-            for fn in glob.glob(store.abspath_join(self.options('loggingfolder'), self.storename + '*.png')):
-                os.remove(fn)
+        for fn in glob.glob(os.path.join(self.options('loggingfolder'), self.storename + '*.png')):
+            os.remove(fn)
         # headless ТОЛЬКО если отключен показ капчи, pause, и ТОЛЬКО если не стоит show_chrome=0
         # иначе мы видимость браузера из headless уже не вернем и капчу показать не сможем
         if type(headless) == bool:
@@ -283,7 +280,7 @@ class BalanceOverPlaywright():
             # !!! в storename уже преобразован поэтому чтобы выкинуть из него ненужную часть нужно по ним тоже регуляркой пройтись
             self.storename = self.storename.replace(re.sub(r'\W', '_', self.login_ori), re.sub(r'\W', '_', self.login))  # исправляем storename
         kill_chrome()  # Превентивно убиваем все наши хромы, чтобы не появлялось кучи зависших
-        clear_cache(self.storefolder, self.storename)
+        clear_cache(self.options('storefolder'), self.storename)
         self.result = {}
         self.responses = {}
         self.hide_chrome_flag = str(self.options('show_chrome')) == '0' and self.options('logginglevel') != 'DEBUG'
@@ -294,14 +291,14 @@ class BalanceOverPlaywright():
             "--window-size=800,900"]
         # if self.headless:
         # В Headless chrome не работают профили, в Firefox их вообще нет, так что многопрофильность не используем
-        self.user_data_dir = store.abspath_join(self.storefolder, 'headless', self.profile_directory)
+        self.user_data_dir = os.path.join(self.options('storefolder'), 'headless', self.profile_directory)
         # Firefox в некоторых версиях не хочет стартовать если не создана папка профиля
         if not os.path.exists(self.user_data_dir):
             os.makedirs(self.user_data_dir, exist_ok=True)
         self.launch_config = {
             'headless': self.headless,
         }
-        fix_crash_banner(self.storefolder, self.storename)
+        fix_crash_banner(self.options('storefolder'), self.storename)
 
     def response_worker(self, response):
         'Response Worker вызывается на каждый url который открывается при загрузке страницы (т.е. список тот же что на вкладке сеть в хроме)'
@@ -322,7 +319,7 @@ class BalanceOverPlaywright():
                 # if '2336' in txt:
                 #    logging.info(f'2336 in {response.request.url}')
             except Exception:
-                exception_text = f'Ошибка: {store.exception_text()}'
+                exception_text = f'Ошибка: {simple.exception_text()}'
                 logging.debug(exception_text)
 
     def on_route_worker(self, route):
@@ -362,7 +359,7 @@ class BalanceOverPlaywright():
         try:
             return self.page.evaluate(eval_string, args)
         except Exception:
-            exception_text = f'Ошибка в page_evaluate:{store.exception_text()}'
+            exception_text = f'Ошибка в page_evaluate:{simple.exception_text()}'
             if 'Execution context was destroyed' not in exception_text:
                 logging.info(exception_text)
                 raise
@@ -400,13 +397,13 @@ class BalanceOverPlaywright():
         return self.page.content()
 
     def page_screenshot(self, path='', number=-1, suffix=''):
-        if str(self.options('log_responses')) != '1' and self.options('logginglevel') != 'DEBUG' or settings.mode != settings.MODE_MB:
+        if str(self.options('log_responses')) != '1' and self.options('logginglevel') != 'DEBUG':
             return
         if number == -1 and suffix == '':
             suffix = self.ss_counter
             self.ss_counter += 1
         if path == '':
-            path = store.abspath_join(self.options('loggingfolder'), f'{self.storename}_{suffix}.png')
+            path = os.path.join(self.options('loggingfolder'), f'{self.storename}_{suffix}.png')
         self.page.screenshot(path=path)
 
     @check_browser_opened_decorator
@@ -436,7 +433,7 @@ class BalanceOverPlaywright():
                     # в процессе выполнения можем грохнуться т.к. страница может перезагрузиться, такие даже не пишем в лог
                     res = self.page.evaluate(expression, **kwargs)
                 except Exception:
-                    exception_text = f'Ошибка в page_wait_for:{store.exception_text()}'
+                    exception_text = f'Ошибка в page_wait_for:{simple.exception_text()}'
                     if 'Execution context was destroyed' not in exception_text:
                         logging.info(exception_text)
                     if 'Target page, context or browser has been closed' in exception_text:
@@ -588,7 +585,7 @@ class BalanceOverPlaywright():
         Смотрите актуальное описание напротив параметров в коментариях
         Чтобы избежать ошибок - копируйте названия параметров'''
         breakpoint() if os.path.exists('breakpoint_logon') else None
-        store.feedback.text(f'Логинимся', append=True)
+        simple.feedback(f'Логинимся', self.options('feedback'), append=True)
         selectors = default_logon_selectors.copy()
         if url is None:
             url = self.login_url
@@ -682,7 +679,7 @@ class BalanceOverPlaywright():
                         res = eval(pformula, {'data': response_result})
                         return res
                     except Exception:
-                        exception_text = f'Ошибка в pformula:{pformula} :{store.exception_text()}'
+                        exception_text = f'Ошибка в pformula:{pformula} :{simple.exception_text()}'
                         logging.info(exception_text)
                 if jsformula != '':
                     logging.info(f'{param_name}: jsformula on {url_tag}:{jsformula}')
@@ -727,8 +724,9 @@ class BalanceOverPlaywright():
             logging.error(error_msg)
             raise RuntimeError(error_msg)
         fb_txt = f'Собираем параметры {",".join([i.get("name","") for i in params])}'
-        store.feedback.text(fb_txt, append=True)
+        simple.feedback(fb_txt, self.options('feedback'), append=True)
         logging.info(f'wait_params: {fb_txt}')
+        # breakpoint()
         if url != '':  # Если указан url то сначала переходим на него
             self.page_goto(url)
             self.page_wait_for(loadstate=True)
@@ -773,7 +771,7 @@ class BalanceOverPlaywright():
             os.system('pgrep Xvfb || Xvfb :99 -screen 0 1920x1080x24 &')
             os.system('export DISPLAY=:99')  # On linux and headless:False use Xvfb
             os.environ['DISPLAY'] = ':99'
-        store.feedback.text(f'Запуск браузера', append=True)
+        simple.feedback(f'Запуск браузера', self.options('feedback'), append=True)
         with sync_playwright() as self.sync_pw:
             browsertype_text = self.options('browsertype')
             self.browsertype: playwright.sync_api._generated.BrowserType = getattr(self.sync_pw, browsertype_text)
@@ -782,7 +780,7 @@ class BalanceOverPlaywright():
                 try:
                     self.data_collector()
                 except Exception:
-                    logging.error(f'Exception in data_collector: {store.exception_text()}')
+                    logging.error(f'Exception in data_collector: {simple.exception_text()}')
                     raise
             elif run == CHECK_LOGON:
                 self.check_logon_selectors_prepare()
@@ -797,17 +795,16 @@ class BalanceOverPlaywright():
             logging.debug(f'Data ready {self.result.keys()}')
             if str(self.options('playwright_pause')) == '1':
                 self.page.pause()
-            if settings.mode == settings.MODE_MB:
-                if str(self.options('log_responses')) == '1' or self.options('logginglevel') == 'DEBUG':
-                    import pprint
-                    text = '\n\n'.join([f'{k}\n{v if k.startswith("CONTENT") else pprint.PrettyPrinter(indent=4).pformat(v) }'
-                                        for k, v in self.responses.items() if 'GetAdElementsLS' not in k and 'mc.yandex.ru' not in k])
-                    with open(store.abspath_join(self.options('loggingfolder'), self.storename + '.log'), 'w', encoding='utf8', errors='ignore') as f:
-                        f.write(text)
+            if str(self.options('log_responses')) == '1' or self.options('logginglevel') == 'DEBUG':
+                import pprint
+                text = '\n\n'.join([f'{k}\n{v if k.startswith("CONTENT") else pprint.PrettyPrinter(indent=4).pformat(v) }'
+                                    for k, v in self.responses.items() if 'GetAdElementsLS' not in k and 'mc.yandex.ru' not in k])
+                with open(os.path.join(self.options('loggingfolder'), self.storename + '.log'), 'w', encoding='utf8', errors='ignore') as f:
+                    f.write(text)
             self.browser_close()
         self.sync_pw.stop()
         kill_chrome()  # Добиваем все наши незакрытые хромы, чтобы не появлялось кучи зависших
-        clear_cache(self.storefolder, self.storename)
+        clear_cache(self.options('storefolder'), self.storename)
         time.sleep(2)  # Даем время закрыться
         return self.result
 
